@@ -1,0 +1,23 @@
+# ===== 数据集（可由 torchvision 自动下载）=====
+MNIST/
+data/
+
+# ===== 模型权重与生成产物（可重新训练/采样得到）=====
+*.pth
+*.pt
+default/
+
+# ===== 对比实验产物：曲线图与汇总表保留（demo 页面引用），大体积合成数据除外 =====
+!compare_results/
+compare_results/ddpm_synthetic.pt
+
+# ===== Python =====
+__pycache__/
+*.pyc
+.venv/
+
+# ===== IDE / 系统 =====
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

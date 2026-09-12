@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DDPM × MNIST 分类模型对比实验 · Demo</title>
+<style>
+  /* ========== 全局：仿 Matcha-TTS demo 的简约学术风 ========== */
+  :root {
+    --green: #1e7a55;
+    --green-dark: #14573c;
+    --green-light: #e8f4ee;
+    --amber: #b7791f;
+    --ink: #222;
+    --muted: #666;
+    --line: #e3e8e5;
+    --maxw: 1080px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; color: var(--ink);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    line-height: 1.65; background: #fff;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px 80px; }
+
+  header { text-align: center; padding: 56px 0 8px; }
+  header h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: .5px; }
+  header h1 .accent { color: var(--green); }
+  header .sub { color: var(--muted); font-size: 15px; }
+  header .links { margin-top: 10px; font-size: 14px; }
+  header .links a { color: var(--green); text-decoration: none; margin: 0 10px; }
+  header .links a:hover { text-decoration: underline; }
+
+  h2 { font-size: 22px; margin: 56px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--green); }
+  h2 .en { color: var(--muted); font-weight: 400; font-size: 15px; margin-left: 10px; }
+  h3 { font-size: 17px; color: var(--green-dark); margin: 32px 0 10px; }
+
+  /* ---------- 流程图 ---------- */
+  .pipeline { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; margin: 18px 0 6px; }
+  .pnode {
+    border: 1.5px solid var(--green); border-radius: 8px; padding: 10px 14px;
+    background: var(--green-light); min-width: 104px; text-align: center;
+  }
+  .pnode b { display: block; font-size: 14px; color: var(--green-dark); }
+  .pnode span { font-size: 12px; color: var(--muted); }
+  .pnode.hl { background: var(--green); }
+  .pnode.hl b, .pnode.hl span { color: #fff; }
+  .pnode.ddpm { border-color: var(--amber); background: #fdf3e7; }
+  .pnode.ddpm b { color: var(--amber); }
+  .parrow { display: flex; align-items: center; padding: 0 6px; color: var(--green); font-size: 18px; }
+  .parrow.ddpm { color: var(--amber); }
+  .branch-label { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+  .pipeline-note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .specs { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; font-size: 13px; color: var(--muted); background: #fafbfa; }
+  .chip b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- 卡片 ---------- */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .card { border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; background: #fcfdfc; }
+  .card h3 { margin: 0 0 8px; font-size: 15px; color: var(--green-dark); }
+  .card p { margin: 0; font-size: 13.5px; color: #444; }
+
+  /* ---------- 指标表 ---------- */
+  table.metrics { border-collapse: collapse; width: 100%; font-size: 14px; margin-top: 6px; }
+  table.metrics th, table.metrics td { border: 1px solid var(--line); padding: 9px 12px; text-align: center; }
+  table.metrics thead th { background: var(--green); color: #fff; }
+  table.metrics thead th.amber { background: var(--amber); }
+  table.metrics tbody tr:nth-child(even) { background: #f7fbf9; }
+  table.metrics td.l { text-align: left; }
+  td.pending { color: #aaa; font-style: italic; }
+  tr.best td { outline: 2px solid #9fd4bb; outline-offset: -2px; }
+  .note { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+  .callout { border-left: 4px solid var(--green); background: var(--green-light); padding: 10px 14px; border-radius: 0 8px 8px 0; }
+
+  /* ---------- 曲线图 ---------- */
+  .figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+  figure.curve-fig { margin: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fcfdfc; }
+  figure.curve-fig img { width: 100%; display: block; }
+  figure.curve-fig figcaption { font-size: 12.5px; color: var(--muted); padding: 8px 12px; border-top: 1px solid var(--line); }
+  .fig-placeholder { padding: 46px 16px; text-align: center; color: #aaa; font-size: 13.5px; font-style: italic; }
+
+  /* ---------- 代码块 ---------- */
+  pre.code {
+    background: #f6f8f7; border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px 16px; font-size: 13px; overflow-x: auto; line-height: 1.7;
+  }
+  pre.code .cmt { color: var(--muted); }
+
+  footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line);
+           font-size: 13px; color: var(--muted); text-align: center; }
+  footer a { color: var(--green); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>DDPM <span class="accent">× MNIST</span> 分类模型对比实验 · Demo</h1>
+    <div class="sub">统一对齐协议下的横向对比：ANN / CNN / ViT / 传统机器学习，及 DDPM 生成数据的下游可用性评估 · 纯静态页面</div>
+    <div class="links">
+      <a href="#design">实验设计</a> · <a href="#real">真实数据对比</a> · <a href="#ddpm">DDPM 合成数据对比</a> · <a href="#analysis">结果分析</a> · <a href="#repro">复现</a>
+    </div>
+  </header>
+
+  <!-- ================= 1. 实验设计 ================= -->
+  <h2 id="design">实验设计 <span class="en">Experiment Design</span></h2>
+
+  <div class="pipeline">
+    <div class="pnode"><b>官方 MNIST</b><span>train 60k · test 10k</span></div>
+    <div class="parrow">→</div>
+    <div class="pnode hl"><b>统一预处理</b><span>ToTensor + Normalize(0.5) → [-1,1]</span></div>
+    <div class="parrow">→</div>
+    <div class="pnode"><b>真实数据训练组</b><span>ANN / CNN / ViT / SVM / KNN / RF / LR</span></div>
+    <div class="parrow">→</div>
+    <div class="pnode hl"><b>同一测试集评估</b><span>10k 官方测试集 · Top-1 Acc</span></div>
+  </div>
+
+  <div class="pipeline" style="margin-top:14px">
+    <div class="pnode ddpm"><b>已训练 DDPM</b><span>default/ddpm_ckpt.pth · 1000 步线性调度</span></div>
+    <div class="parrow ddpm">→</div>
+    <div class="pnode ddpm"><b>批量反向采样</b><span>从纯噪声生成 28×28 手写数字</span></div>
+    <div class="parrow ddpm">→</div>
+    <div class="pnode ddpm"><b>伪标签</b><span>真实数据最优分类器标注 · 置信度 ≥ 0.9 过滤</span></div>
+    <div class="parrow ddpm">→</div>
+    <div class="pnode ddpm"><b>从零训练分类器</b><span>同一协议 · 只用合成数据</span></div>
+    <div class="parrow ddpm">→</div>
+    <div class="pnode ddpm"><b>真实测试集评估</b><span>量化生成数据的下游可用性</span></div>
+  </div>
+
+  <div class="pipeline-note">
+    DDPM 是生成模型，本身没有分类准确率，因此采用标准的<b>下游评估</b>方案进入准确率对比表：用 DDPM 生成的图像打上伪标签后从零训练同一批分类器，
+    在真实测试集上的准确率即为"生成数据质量"的量化体现。绿色高亮 = 全实验统一的关键环节，橙色 = DDPM 链路独有环节。
+  </div>
+
+  <div class="specs">
+    <div class="chip">数据 <b>MNIST 60,000 / 10,000（官方划分）</b></div>
+    <div class="chip">归一化 <b>(x−0.5)/0.5 → [−1,1]</b></div>
+    <div class="chip">batch <b>64</b></div>
+    <div class="chip">epochs <b>10</b></div>
+    <div class="chip">优化器 <b>Adam 1e-3 + StepLR(5, 0.5)</b></div>
+    <div class="chip">损失 <b>CrossEntropy</b></div>
+    <div class="chip">随机种子 <b>42</b></div>
+    <div class="chip">设备 <b>RTX 5060 Laptop</b></div>
+  </div>
+
+  <h3>对齐要点（对比实验公平性保障）</h3>
+  <div class="cards">
+    <div class="card"><h3>① 数据完全对齐</h3><p>所有模型读同一份 <b>MNIST/raw</b> 官方 IDX 文件（torchvision 约定 &lt;root&gt;/MNIST/raw），修复了原脚本 <code>root='./MNIST'</code> 会触发重复下载的隐患；传统 ML 输入由 [0,1] 统一为 [−1,1]。</p></div>
+    <div class="card"><h3>② 训练协议对齐</h3><p>深度模型统一 batch 64、10 epochs、Adam(1e-3)+StepLR、CE 损失、seed 42；num_workers=0（Windows）；每个实验训练前重置种子，保证初始化流一致。</p></div>
+    <div class="card"><h3>③ 评估对齐</h3><p>全部模型（含传统 ML）在<b>同一份官方 10k 测试集</b>上报 Top-1 准确率；深度模型逐 epoch 记录 loss / test acc 并绘制曲线。</p></div>
+    <div class="card"><h3>④ DDPM 链路可追溯</h3><p>伪标签器、置信度阈值、保留率、采样步数等全部元信息写入 <code>ddpm_synthetic.pt</code> 与 <code>summary.md</code> 的 Protocol 区，保证结论可复现、可审计。</p></div>
+  </div>
+
+  <!-- ================= 2. 真实数据对比 ================= -->
+  <h2 id="real">结果：真实数据训练 <span class="en">Trained on Real MNIST</span></h2>
+  <table class="metrics">
+    <thead>
+      <tr><th style="width:20%">模型</th><th>类型</th><th>参数量</th><th>训练时长 (s)</th><th>最佳测试准确率</th><th>末轮准确率</th><th style="width:24%">说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="l">ANN</td><td>全连接 · 1 隐层(15) · Sigmoid</td><td>11,935</td><td>85.0</td><td>0.9338</td><td>0.9338</td><td class="l">最简基线，容量极小；第 10 轮仍在缓慢提升（即 best=final）</td></tr>
+      <tr class="best"><td class="l">CNN</td><td>2×(Conv-BN-ReLU-Pool) + FC</td><td>421,834</td><td>92.3</td><td><b>0.9931</b> ★</td><td>0.9923</td><td class="l">全场最佳（ep6 达峰）；卷积偏置在 28×28 小图上收益巨大</td></tr>
+      <tr><td class="l">ViT</td><td>16 patch · dim128 · 6 层 4 头</td><td>1,199,882</td><td>238.6</td><td>0.9732</td><td>0.9696</td><td class="l">参数最多但落后 CNN 约 2pp；ep9 仍在爬升，欠训练</td></tr>
+      <tr><td class="l">SVM</td><td>RBF 核 · gamma=scale</td><td>—</td><td>198.4</td><td>0.9792</td><td>—</td><td class="l">传统组最佳，反超 ViT 与 ANN，仅落后 CNN 1.4pp</td></tr>
+      <tr><td class="l">KNN</td><td>k=5 · 欧氏距离</td><td>—</td><td>9.3</td><td>0.9688</td><td>—</td><td class="l">无显式训练，预测慢</td></tr>
+      <tr><td class="l">RandomForest</td><td>100 棵树 · seed 42</td><td>—</td><td>25.4</td><td>0.9705</td><td>—</td><td class="l">对输入缩放不敏感</td></tr>
+      <tr><td class="l">LogisticRegression</td><td>lbfgs · max_iter=100</td><td>—</td><td>10.5</td><td>0.9225</td><td>—</td><td class="l">100 迭代未收敛（ConvergenceWarning），数值偏保守</td></tr>
+    </tbody>
+  </table>
+  <div class="note">数据来源：2026-09-07 实测（myagent 环境 · RTX 5060 · seed 42 · Adam 1e-3 + StepLR · 10 epochs）；与 <code>compare_results/summary.md</code> 同源。★ 标记全场最佳；LR 的 ConvergenceWarning 意味其 0.9225 是下限而非上限。</div>
+
+  <!-- ================= 3. DDPM 合成数据对比 ================= -->
+  <h2 id="ddpm">结果：DDPM 合成数据训练 <span class="en">Trained on DDPM-generated Data</span></h2>
+
+  <h3>生成链路参数</h3>
+  <table class="metrics">
+    <thead><tr><th>DDPM 权重</th><th>采样步数</th><th>生成数量</th><th>伪标签器</th><th>置信度阈值</th><th>保留数量 / 比例</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>default/ddpm_ckpt.pth</td><td>1000</td><td>2000</td>
+        <td>CNN（真实数据组最优，0.9931）</td><td>0.9</td><td><b>1883 / 2000（94.2%）</b></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>下游分类准确率（同一 10k 真实测试集）</h3>
+  <table class="metrics">
+    <thead>
+      <tr><th style="width:20%">模型</th><th>训练数据规模</th><th>最佳测试准确率</th><th>与真实数据组的差距</th><th style="width:30%">说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="l">ANN</td><td>1,883</td><td>0.6658</td><td>−26.8pp</td><td class="l">掉点最狠——瓶颈是数据规模/多样性而非模型容量</td></tr>
+      <tr class="best"><td class="l">CNN</td><td>1,883</td><td><b>0.9601</b> ★</td><td>−3.3pp</td><td class="l">仅用真实数据 1/32 的合成样本即达 96%，生成数据判别信息密度高</td></tr>
+      <tr><td class="l">ViT</td><td>1,883</td><td>0.8052</td><td>−16.8pp</td><td class="l">对数据质量/规模最敏感，与①中"欠训练"结论互相印证</td></tr>
+    </tbody>
+  </table>
+  <div class="note">
+    ① 伪标签来自 CNN（真实数据 0.9931），标签噪声与数据规模共同压低上限；② 阈值 0.9 下保留率 94.2%，说明绝大多数生成样本对强分类器而言"高置信可判别"，DDPM 生成质量整体可用；
+    ③ 想加大规模可用 <code>--num-synthetic 60000</code> 重跑（预期 gap 收窄）。
+  </div>
+
+  <!-- ================= 4. 曲线 ================= -->
+  <h2>训练曲线 <span class="en">Per-epoch Curves</span></h2>
+  <div class="figs">
+    <figure class="curve-fig" data-src="../compare_results/ddpm_preview.png"><figcaption>DDPM 生成样本预览（8×8 = 64 张 · default/ddpm_ckpt.pth · 1000 步采样）</figcaption></figure>
+    <figure class="curve-fig" data-src="../compare_results/curves/CNN_real.png"><figcaption>CNN · 真实数据（loss / test acc，逐 epoch）</figcaption></figure>
+    <figure class="curve-fig" data-src="../compare_results/curves/ViT_real.png"><figcaption>ViT · 真实数据</figcaption></figure>
+    <figure class="curve-fig" data-src="../compare_results/curves/ANN_real.png"><figcaption>ANN · 真实数据</figcaption></figure>
+    <figure class="curve-fig" data-src="../compare_results/curves/CNN_ddpm.png"><figcaption>CNN · DDPM 合成数据</figcaption></figure>
+    <figure class="curve-fig" data-src="../compare_results/curves/ViT_ddpm.png"><figcaption>ViT · DDPM 合成数据</figcaption></figure>
+    <figure class="curve-fig" data-src="../compare_results/curves/ANN_ddpm.png"><figcaption>ANN · DDPM 合成数据</figcaption></figure>
+  </div>
+  <div class="note">曲线由 <code>compare/train_utils.py</code> 逐 epoch 收集（平均训练 loss + 全测试集准确率）并绘制；六张曲线已全部生成（打开页面即自动显示），另附 DDPM 生成样本预览网格。</div>
+
+  <!-- ================= 5. 结果分析 ================= -->
+  <h2 id="analysis">结果分析 <span class="en">Analysis</span></h2>
+  <div class="callout">
+    <b>状态：本轮全部实验已完成并填入（2026-09-07 · myagent 环境 · RTX 5060 · 全程约 55 分钟）。</b>混合增广实验未纳入本轮范围（作为可选扩展，命令见复现区）。
+  </div>
+
+  <div class="cards" style="margin-top:14px">
+    <div class="card"><h3>① 深度模型架构对比 ✔</h3><p><b>CNN 0.9931 ≫ ViT 0.9732 &gt; ANN 0.9338。</b>卷积归纳偏置在 28×28 小图 + 10 epochs 短训练下收益压倒性；ViT 参数最多（120 万）却落后 CNN 约 2pp 且 ep9 仍在爬升（欠训练特征，文献预期成立：ViT 需大数据/强增广）；ANN 受限于 1.2 万参数 + Sigmoid，~93% 见顶。</p></div>
+    <div class="card"><h3>② 深度 vs 传统机器学习 ✔</h3><p><b>SVM-RBF 0.9792 是被低估的强基线</b>：反超 ViT（0.9732）与 ANN，距 CNN 仅 1.4pp；RF 0.9705、KNN 0.9688 同样压过 ViT/ANN。"深度全面占优"在 MNIST 上不成立——只有 CNN 占优，且 SVM 训练 198s（CPU 单机）vs CNN 92s（GPU），性价比看 CNN 赢、看门槛 SVM 更平易。LR 因 100 迭代未收敛，0.9225 只能当下限。</p></div>
+    <div class="card"><h3>③ DDPM 生成数据质量（下游视角）✔</h3><p><b>保留率 94.2% + CNN 仅掉 3.3pp（0.9931 → 0.9601）</b>：只用 1,883 张合成图（真实数据量 1/32）就在真实测试集达 96%——生成样本的判别信息密度高，DDPM 生成质量整体可用。gap 排序 CNN(−3.3pp) &lt; ViT(−16.8pp) &lt; ANN(−26.8pp)：掉点主因是<b>数据规模/多样性而非模型容量</b>（容量最小的 ANN 掉最狠、对数据最敏感的 ViT 居中）；另注意上限同时受伪标签教师（CNN 自身 0.9931）限制。</p></div>
+  </div>
+
+  <!-- ================= 6. 复现 ================= -->
+  <h2 id="repro">复现方式 <span class="en">Reproduction</span></h2>
+<pre class="code"><span class="cmt"># 环境：D:\Anaconda\envs\myagent（torch 2.7.1+cu128 · RTX 5060）</span>
+cd D:\PycharmProjects\PythonProject7\DDPM-Pytorch-main
+
+<span class="cmt"># 一键跑全部对比（深度 3 模型 × 真实/合成 + 传统 ML + DDPM 采样 2000 张）</span>
+& D:\Anaconda\envs\myagent\python.exe -m tools.run_comparison
+
+<span class="cmt"># 可选：加大合成数据规模 / 增加混合训练实验 / 复用已生成的合成数据</span>
+& D:\Anaconda\envs\myagent\python.exe -m tools.run_comparison --num-synthetic 60000
+& D:\Anaconda\envs\myagent\python.exe -m tools.run_comparison --with-augment
+& D:\Anaconda\envs\myagent\python.exe -m tools.run_comparison --skip-generation
+
+<span class="cmt"># 产物</span>
+<span class="cmt">#   compare_results/summary.md        对比总表 + 协议记录</span>
+<span class="cmt">#   compare_results/summary.csv       机器可读版本</span>
+<span class="cmt">#   compare_results/curves/*.png      逐 epoch loss / acc 曲线</span>
+<span class="cmt">#   compare_results/ddpm_preview.png  DDPM 生成效果预览网格</span>
+<span class="cmt">#   compare_results/ddpm_synthetic.pt 合成数据 + 伪标签 + 元信息</span></pre>
+
+  <footer>
+    DDPM 复现基于 <a href="https://arxiv.org/abs/2006.11239">Ho et al., 2020 (DDPM)</a> ·
+    数据 <a href="https://en.wikipedia.org/wiki/MNIST_database">MNIST</a> ·
+    统一对比框架 <code>compare/</code> + <code>tools/run_comparison.py</code><br>
+    本页为纯静态页面（无外部依赖），结果表待实验完成后回填。
+  </footer>
+</div>
+
+<script>
+/* 曲线图懒加载：存在则嵌入，不存在显示占位提示 */
+document.querySelectorAll("figure.curve-fig").forEach(fig => {
+  const src = fig.dataset.src;
+  const img = new Image();
+  img.onload = () => { fig.insertBefore(img, fig.firstChild); };
+  img.onerror = () => {
+    const ph = document.createElement("div");
+    ph.className = "fig-placeholder";
+    ph.textContent = "（待生成：" + src.replace("../compare_results/", "") + "）";
+    fig.insertBefore(ph, fig.firstChild);
+  };
+  img.src = src;
+});
+</script>
+</body>
+</html>

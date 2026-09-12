@@ -72,9 +72,10 @@ def plot_curves(history, title, out_path):
     plt.title('Test Accuracy')
     plt.annotate(f'Max acc: {acc_max:.4f}',
                  xy=(acc_max_epoch, acc_max),
-                 xytext=(acc_max_epoch * 0.7, max(acc_max - 0.05, 0)),
-                 arrowprops=dict(facecolor='black', shrink=0.05),
-                 fontsize=10)
+                 xytext=(0.40, 0.10), textcoords='axes fraction',
+                 ha='center', fontsize=10,
+                 arrowprops=dict(facecolor='black', shrink=0.10,
+                                 width=1.5, headwidth=7))
     plt.suptitle(title)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     plt.savefig(out_path, bbox_inches='tight')

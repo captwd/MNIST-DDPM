@@ -1,11 +1,7 @@
 part,model,train_source,train_size,params,time_s,best_acc,final_acc
-real,ANN,real,60000,11935,85.0,0.9338,0.9338
-real,CNN,real,60000,421834,92.3,0.9931,0.9923
-real,ViT,real,60000,1199882,238.6,0.9732,0.9696
-traditional,SVM,real,60000,-,198.4,0.9792,0.9792
-traditional,KNN,real,60000,-,9.3,0.9688,0.9688
-traditional,RandomForest,real,60000,-,25.4,0.9705,0.9705
-traditional,LogisticRegression,real,60000,-,10.5,0.9225,0.9225
-ddpm,ANN,ddpm_synthetic,1883,11935,12.3,0.6658,0.6658
-ddpm,CNN,ddpm_synthetic,1883,421834,13.8,0.9601,0.9601
-ddpm,ViT,ddpm_synthetic,1883,1199882,20.4,0.8052,0.7972
+real,ANN,real,60000,11935,81.4,0.9338,0.9338
+real,CNN,real,60000,421834,96.8,0.9939,0.9935
+real,ViT,real,60000,1199882,217.9,0.9736,0.9736
+ddpm,ANN,ddpm_synthetic,1883,11935,10.8,0.6658,0.6658
+ddpm,CNN,ddpm_synthetic,1883,421834,12.1,0.9603,0.9603
+ddpm,ViT,ddpm_synthetic,1883,1199882,19.5,0.8047,0.8038
